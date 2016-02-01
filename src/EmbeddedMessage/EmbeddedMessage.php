@@ -202,28 +202,32 @@ class EmbeddedMessage
      */
     private function loadStructure()
     {
+        $this->content = imap_fetchbody($this->stream, $this->messageNumber, $this->partNumber, FT_UID);
         $this->rawMimeHeader = imap_fetchmime($this->stream, $this->messageNumber, $this->partNumber, FT_UID);
-        $this->parsedHeader = imap_rfc822_parse_headers($this->rawMimeHeader);
+        $this->parsedHeader = imap_rfc822_parse_headers($this->content);
 
         //Message ID
         $this->id = $this->parsedHeader->message_id;
 
         //Email from
         $emailFrom = $this->parsedHeader->from[0];
+        $emailFrom->personal = isset($emailFrom->personal) ? $emailFrom->personal : null;
         $this->from = new EmailAddress($emailFrom->mailbox, $emailFrom->host, imap_utf8($emailFrom->personal));
 
         //EmailsTo
         $emailsTo = [];
         $parsedEmails = $this->parsedHeader->to;
         foreach ($parsedEmails as $email) {
+            $email->personal = isset($email->personal) ? $email->personal : null;
             $emailsTo[] = new EmailAddress($email->mailbox, $email->host, imap_utf8($email->personal));
         }
         $this->to = $emailsTo;
 
         //EmailsCC
         $emailsCc = [];
-        $parsedEmails = $this->parsedHeader->cc;
+        $parsedEmails = isset($this->parsedHeader->cc) ? $this->parsedHeader->cc : [];
         foreach ($parsedEmails as $email) {
+            $email->personal = isset($email->personal) ? $email->personal : null;
             $emailsCc[] = new EmailAddress($email->mailbox, $email->host, imap_utf8($email->personal));
         }
         $this->cc = $emailsCc;
@@ -253,7 +257,7 @@ class EmbeddedMessage
         if (!$part) {
             //in first iteration we have to get main boundary
             $content = trim($this->getContent());
-            $boundary = $this->getBoundary($this->rawMimeHeader);
+            $boundary = $this->getBoundary($this->content);
             if (!$boundary && $this->isBase64($content)) {
                 //if embedded mail contains only attachment, content IS this attachment (without structure)
                 //so we add mime header to attachment's content and create part from it
@@ -353,6 +357,9 @@ class EmbeddedMessage
     private function getBoundary($content)
     {
         preg_match('/boundary=(.*?)(?: |\n|;)/m', $content, $boundary);
+        if (!$boundary) {
+            return false;
+        }
         return trim(str_replace(['"', ";"], "", $boundary[1]));
     }
 
