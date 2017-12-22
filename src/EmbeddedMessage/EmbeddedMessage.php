@@ -235,7 +235,11 @@ class EmbeddedMessage
         $this->cc = $emailsCc;
 
         //Date
-        $this->date = new \DateTime($this->parsedHeader->date);
+        try {
+            $this->date = new \DateTime($this->parsedHeader->date);
+        } catch (\Error $e) {
+            $this->date = new \DateTime();
+        }
 
         //Subject
         if (preg_match('/=\?(.*?)\?(.*?)\?/', $this->parsedHeader->subject, $matchSubject)) {
